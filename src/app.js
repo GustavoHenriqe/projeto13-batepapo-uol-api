@@ -207,6 +207,25 @@ app.post("/status", async function(req, res) {
 
 })
 
+setInterval(async () => {
+    try {
+        const getParticipant = await db.collection("participants").find({ lastStatus: { $lt: Date.now() - 10000 } }).toArray()
+
+        getParticipant.map(async (user) => {
+            await db.collection("participants").deleteOne({ _id: new ObjectId(user._id) })
+            await db.collection("messages").insertOne({
+                from: user.name,
+                to: "Todos",
+                text: "sai da sala...",
+                type: "status",
+                time: dayjs().format("HH:mm:ss")
+            })
+        })
+
+    } catch (err) {
+        console.log(err)
+    }
+}, 15000)
 
 const PORT = process.env.PORT | 5000
 
