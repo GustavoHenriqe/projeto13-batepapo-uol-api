@@ -1,0 +1,131 @@
+import express from "express"
+import dotenv from "dotenv"
+import cors from "cors"
+import { MongoClient } from "mongodb"
+import joi from "joi"
+import dayjs from "dayjs"
+
+const app = express()
+
+dotenv.config()
+app.use(cors())
+app.use(express.json())
+
+const mongoClient = new MongoClient(process.env.DATABASE_URL)
+
+try {
+    await mongoClient.connect()
+
+} catch (error) {
+    console.log(error)
+}
+
+const db = mongoClient.db()
+
+app.post("/participants", async function(req, res) {
+    const { name } = req.body
+
+    const schemaBody = joi.object({
+        name: joi.required().strict()
+    })
+    const validateSchemaBody = schemaBody.validate(req.body)
+
+    if ( validateSchemaBody.error ) {
+        const errors = validateSchema.error.details.map(e => e.message)
+        return res.status(409).send(errors)
+    }
+
+    try {
+        const searchName = await db.collection("participants").findOne({ name: name })
+
+        if( searchName !== null ) {
+            return res.sendStatus(422)
+        }
+
+        await db.collection("participants").insertOne({ 
+            name: name, 
+            lastStatus: Date.now()
+        })
+
+        await db.collection("messages").insertOne({
+            from: name,
+            to: "Todos",
+            text: "entra na sala...",
+            type: "statuts",
+            time: dayjs().format("HH:mm:ss")
+        })
+
+        res.sendStatus(201)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(500)
+    }
+
+})
+
+app.get("/participants", async function(req, res) {
+    try {
+        const participants = await db.collection("participants").find({}).toArray()
+        return res.status(200).send(participants)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(500)
+    }
+})
+
+app.post("/messages", async function(req, res) {
+    const { to, text, type } = req.body
+    const { name } = req.headers
+
+    const typeAccepted = ["message", "private_message"]
+
+    const schemaBody = joi.object({
+        to: joi.string().required(),
+        text: joi.string().required(),
+        type: joi.string().required().valid(...typeAccepted)
+    })
+
+    const schemaHeaders = joi.required()
+
+    const validateSchemaBody = schemaBody.validate(req.body)
+    const validateSchemaHeaders = schemaHeaders.validate(name)
+    
+    if ( validateSchemaBody.error ) {
+        const errors = validateSchemaBody.error.details.map(e => e.message)
+        return res.status(422).send(errors)
+
+    } else if (validateSchemaHeaders.error) {
+        const errors = validateSchemaHeaders.error.details.map(e=> e.message)
+        return res.status(422).send(errors)
+    }
+
+    try {
+        const searchName = await db.collection("participants").findOne({ name: name })
+
+        if ( searchName === null ) {
+            return res.sendStatus(403)
+        }
+
+        await db.collection("messages").insertOne({ 
+            from: name,
+            to: to,
+            text: text,
+            type: type,
+            time: dayjs().format("HH:mm:ss")
+        })
+
+        res.sendStatus(201)
+
+    } catch (err) {
+        console.log(err)
+        return res.sendStatus(500)
+    }
+
+})
+
+
+const PORT = process.env.PORT | 5000
+
+app.listen(PORT, () => console.log(`Running server in port ${PORT}`))
