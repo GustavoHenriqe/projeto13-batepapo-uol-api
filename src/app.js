@@ -1,7 +1,7 @@
 import express from "express"
 import dotenv from "dotenv"
 import cors from "cors"
-import { MongoClient } from "mongodb"
+import { MongoClient, ObjectId } from "mongodb"
 import joi from "joi"
 import dayjs from "dayjs"
 
@@ -31,7 +31,7 @@ app.post("/participants", async function(req, res) {
     const validateSchemaBody = schemaBody.validate(req.body)
 
     if ( validateSchemaBody.error ) {
-        const errors = validateSchema.error.details.map(e => e.message)
+        const errors = validateSchemaBody.error.details.map(e => e.message)
         return res.status(409).send(errors)
     }
 
@@ -59,7 +59,7 @@ app.post("/participants", async function(req, res) {
 
     } catch (err) {
         console.log(err)
-        return res.sendStatus(500)
+        res.sendStatus(500)
     }
 
 })
@@ -71,7 +71,7 @@ app.get("/participants", async function(req, res) {
 
     } catch (err) {
         console.log(err)
-        return res.sendStatus(500)
+        res.sendStatus(500)
     }
 })
 
@@ -96,7 +96,7 @@ app.post("/messages", async function(req, res) {
         const errors = validateSchemaBody.error.details.map(e => e.message)
         return res.status(422).send(errors)
 
-    } else if (validateSchemaHeaders.error) {
+    } else if ( validateSchemaHeaders.error ) {
         const errors = validateSchemaHeaders.error.details.map(e=> e.message)
         return res.status(422).send(errors)
     }
@@ -121,6 +121,88 @@ app.post("/messages", async function(req, res) {
     } catch (err) {
         console.log(err)
         return res.sendStatus(500)
+    }
+
+})
+
+app.get("/messages", async function(req, res) {
+    const { user } = req.headers
+    const { limit } = req.query
+
+    try {
+        const searchName = await db.collection("participants").findOne({ name: user })
+        
+        if ( searchName === null ) {
+            return res.sendStatus(403)
+        }
+
+        const getMessages = await db.collection("messages").find({
+            $or: [
+                { to: "Todos"},
+                { to: user },
+                { from: user}
+            ]
+        }).toArray()
+
+        if ( limit ) {
+            const schemaQuery = joi.string().required().pattern(/^[1-9]\d*$/)
+
+            const validateQuery = schemaQuery.validate(limit)
+
+            if ( validateQuery.error ) {
+                const errors = validateQuery.error.details.map(e => e.message)
+                return res.status(422).send(errors)
+            }
+
+            const lastElements = getMessages.slice(-limit)
+
+            return res.status(200).send(lastElements)
+        }
+
+        res.status(200).send(getMessages)
+
+    } catch (err) {
+        console.log(err)
+        res.sendStatus(500)
+    }
+
+})
+
+app.post("/status", async function(req, res) {
+    const { user } = req.headers
+
+    const schemaHeaders = joi.required()
+
+    const validateSchemaHeaders = schemaHeaders.validate(user)
+
+    if ( validateSchemaHeaders.error ) {
+        const errors = validateSchemaHeaders.error.details.map(e=> e.message)
+        return res.status(404).send(errors)
+    }
+
+    try {
+        const searchName = await db.collection("participants").findOne({ name: user })
+
+        if ( searchName === null ) {
+            return res.sendStatus(404)
+        }
+
+        await db.collection("participants").updateOne(
+            { 
+                _id: new ObjectId(searchName._id) 
+            }, 
+            {
+                $set: { 
+                    lastStatus: Date.now()
+                }
+            }
+        )
+
+        res.sendStatus(200)
+
+    } catch (err) {
+        console.log(err)
+        res.sendStatus(500)
     }
 
 })
