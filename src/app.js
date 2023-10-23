@@ -32,14 +32,14 @@ app.post("/participants", async function(req, res) {
 
     if ( validateSchemaBody.error ) {
         const errors = validateSchemaBody.error.details.map(e => e.message)
-        return res.status(409).send(errors)
+        return res.status(422).send(errors)
     }
 
     try {
         const searchName = await db.collection("participants").findOne({ name: name })
 
-        if( searchName !== null ) {
-            return res.sendStatus(422)
+        if( searchName ) {
+            return res.sendStatus(409)
         }
 
         await db.collection("participants").insertOne({ 
@@ -227,6 +227,6 @@ setInterval(async () => {
     }
 }, 15000)
 
-const PORT = process.env.PORT | 5000
+const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => console.log(`Running server in port ${PORT}`))
