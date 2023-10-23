@@ -136,14 +136,6 @@ app.get("/messages", async function(req, res) {
             return res.sendStatus(403)
         }
 
-        const getMessages = await db.collection("messages").find({
-            $or: [
-                { to: "Todos"},
-                { to: user },
-                { from: user}
-            ]
-        }).toArray()
-
         if ( limit ) {
             const schemaQuery = joi.string().required().pattern(/^[1-9]\d*$/)
 
@@ -153,12 +145,20 @@ app.get("/messages", async function(req, res) {
                 const errors = validateQuery.error.details.map(e => e.message)
                 return res.status(422).send(errors)
             }
-
-            const lastElements = getMessages.slice(-limit)
-
-            return res.status(200).send(lastElements)
         }
 
+        const getMessages = await db.collection("messages").find({
+            $or: [
+                { from: user },
+                { to: { $in: [user, "Todos"] } },
+                { type: "message" },
+              ],
+        }).limit(limit).toArray()
+
+        if ( getMessages.length === 0 ) {
+            return res.status(404).send("Nenhuma mensagem!")
+        }
+        
         res.status(200).send(getMessages)
 
     } catch (err) {
@@ -215,10 +215,8 @@ setInterval(async () => {
             await db.collection("participants").deleteOne({ _id: new ObjectId(user._id) })
             await db.collection("messages").insertOne({
                 from: user.name,
-                to: "Todos",
                 text: "sai da sala...",
-                status: "status",
-                time: dayjs().format("HH:mm:ss")
+                type: "status",
             })
         })
 
