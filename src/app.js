@@ -77,7 +77,7 @@ app.get("/participants", async function(req, res) {
 
 app.post("/messages", async function(req, res) {
     const { to, text, type } = req.body
-    const { name } = req.headers
+    const { user } = req.headers
 
     const typeAccepted = ["message", "private_message"]
 
@@ -90,7 +90,7 @@ app.post("/messages", async function(req, res) {
     const schemaHeaders = joi.required()
 
     const validateSchemaBody = schemaBody.validate(req.body)
-    const validateSchemaHeaders = schemaHeaders.validate(name)
+    const validateSchemaHeaders = schemaHeaders.validate(user)
     
     if ( validateSchemaBody.error ) {
         const errors = validateSchemaBody.error.details.map(e => e.message)
@@ -102,14 +102,14 @@ app.post("/messages", async function(req, res) {
     }
 
     try {
-        const searchName = await db.collection("participants").findOne({ name: name })
+        const searchName = await db.collection("participants").findOne({ name: user })
 
         if ( searchName === null ) {
             return res.sendStatus(403)
         }
 
         await db.collection("messages").insertOne({ 
-            from: name,
+            from: user,
             to: to,
             text: text,
             type: type,
