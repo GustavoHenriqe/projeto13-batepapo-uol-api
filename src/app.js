@@ -51,7 +51,7 @@ app.post("/participants", async function(req, res) {
             from: name,
             to: "Todos",
             text: "entra na sala...",
-            type: "statuts",
+            type: "status",
             time: dayjs().format("HH:mm:ss")
         })
 
