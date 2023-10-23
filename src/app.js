@@ -77,7 +77,7 @@ app.get("/participants", async function(req, res) {
 
 app.post("/messages", async function(req, res) {
     const { to, text, type } = req.body
-    const { name } = req.headers
+    const { user } = req.headers
 
     const typeAccepted = ["message", "private_message"]
 
@@ -90,7 +90,7 @@ app.post("/messages", async function(req, res) {
     const schemaHeaders = joi.required()
 
     const validateSchemaBody = schemaBody.validate(req.body)
-    const validateSchemaHeaders = schemaHeaders.validate(name)
+    const validateSchemaHeaders = schemaHeaders.validate(user)
     
     if ( validateSchemaBody.error ) {
         const errors = validateSchemaBody.error.details.map(e => e.message)
@@ -102,14 +102,14 @@ app.post("/messages", async function(req, res) {
     }
 
     try {
-        const searchName = await db.collection("participants").findOne({ name: name })
+        const searchName = await db.collection("participants").findOne({ name: user })
 
         if ( searchName === null ) {
-            return res.sendStatus(403)
+            return res.sendStatus(422)
         }
 
         await db.collection("messages").insertOne({ 
-            from: name,
+            from: user,
             to: to,
             text: text,
             type: type,
@@ -136,6 +136,14 @@ app.get("/messages", async function(req, res) {
             return res.sendStatus(403)
         }
 
+        const getMessages = await db.collection("messages").find({
+            $or: [
+                { to: "Todos"},
+                { to: user },
+                { from: user}
+            ]
+        }).toArray()
+
         if ( limit ) {
             const schemaQuery = joi.string().required().pattern(/^[1-9]\d*$/)
 
@@ -145,19 +153,10 @@ app.get("/messages", async function(req, res) {
                 const errors = validateQuery.error.details.map(e => e.message)
                 return res.status(422).send(errors)
             }
-        }
 
-        const getMessages = await db.collection("messages").find({
-            $or: [
-                { from: user },
-                { to: { $in: [user, "Todos"] } },
-                { type: "message" },
-              ],
-        }).limit(limit)
-        .toArray()
+            const lastElements = getMessages.slice(-limit)
 
-        if ( getMessages.length === 0 ) {
-            return res.status(404).send("Nenhuma Mensagem")
+            return res.status(200).send(lastElements)
         }
 
         res.status(200).send(getMessages)
