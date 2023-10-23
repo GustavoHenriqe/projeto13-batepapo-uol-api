@@ -105,7 +105,7 @@ app.post("/messages", async function(req, res) {
         const searchName = await db.collection("participants").findOne({ name: user })
 
         if ( searchName === null ) {
-            return res.sendStatus(403)
+            return res.sendStatus(422)
         }
 
         await db.collection("messages").insertOne({ 
