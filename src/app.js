@@ -77,7 +77,7 @@ app.get("/participants", async function(req, res) {
 
 app.post("/messages", async function(req, res) {
     const { to, text, type } = req.body
-    const { user } = req.headers
+    const { name } = req.headers
 
     const typeAccepted = ["message", "private_message"]
 
@@ -90,7 +90,7 @@ app.post("/messages", async function(req, res) {
     const schemaHeaders = joi.required()
 
     const validateSchemaBody = schemaBody.validate(req.body)
-    const validateSchemaHeaders = schemaHeaders.validate(user)
+    const validateSchemaHeaders = schemaHeaders.validate(name)
     
     if ( validateSchemaBody.error ) {
         const errors = validateSchemaBody.error.details.map(e => e.message)
@@ -102,14 +102,14 @@ app.post("/messages", async function(req, res) {
     }
 
     try {
-        const searchName = await db.collection("participants").findOne({ name: user })
+        const searchName = await db.collection("participants").findOne({ name: name })
 
         if ( searchName === null ) {
-            return res.sendStatus(422)
+            return res.sendStatus(403)
         }
 
         await db.collection("messages").insertOne({ 
-            from: user,
+            from: name,
             to: to,
             text: text,
             type: type,
@@ -126,30 +126,48 @@ app.post("/messages", async function(req, res) {
 })
 
 app.get("/messages", async function(req, res) {
-    const limit = Number(req.query.limit)
     const { user } = req.headers
-  
+    const { limit } = req.query
+
     try {
-      const getMessages = await messagesCollection.find({
-          $or: [
-            { from: user },
-            { to: { $in: [user, "Todos"] } },
-            { type: "message" },
-          ],
-          
-        }).limit(limit).toArray()
-  
-      if (getMessages.length === 0) {
-        return res.status(404).send("Nenhuma mensagem")
-      }
-  
-      res.send(getMessages)
+        const searchName = await db.collection("participants").findOne({ name: user })
+        
+        if ( searchName === null ) {
+            return res.sendStatus(403)
+        }
+
+        if ( limit ) {
+            const schemaQuery = joi.string().required().pattern(/^[1-9]\d*$/)
+
+            const validateQuery = schemaQuery.validate(limit)
+
+            if ( validateQuery.error ) {
+                const errors = validateQuery.error.details.map(e => e.message)
+                return res.status(422).send(errors)
+            }
+        }
+
+        const getMessages = await db.collection("messages").find({
+            $or: [
+                { from: user },
+                { to: { $in: [user, "Todos"] } },
+                { type: "message" },
+              ],
+        }).limit(limit)
+        .toArray()
+
+        if ( getMessages.length === 0 ) {
+            return res.status(404).send("Nenhuma Mensagem")
+        }
+
+        res.status(200).send(getMessages)
 
     } catch (err) {
-      console.log(err)
-      res.sendStatus(500)
+        console.log(err)
+        res.sendStatus(500)
     }
-  })
+
+})
 
 app.post("/status", async function(req, res) {
     const { user } = req.headers
