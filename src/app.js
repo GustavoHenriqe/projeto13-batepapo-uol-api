@@ -26,7 +26,7 @@ app.post("/participants", async function(req, res) {
     const { name } = req.body
 
     const schemaBody = joi.object({
-        name: joi.required().strict()
+        name: joi.string().required()
     })
     const validateSchemaBody = schemaBody.validate(req.body)
 
@@ -217,7 +217,7 @@ setInterval(async () => {
                 from: user.name,
                 to: "Todos",
                 text: "sai da sala...",
-                type: "status",
+                status: "status",
                 time: dayjs().format("HH:mm:ss")
             })
         })
