@@ -136,6 +136,14 @@ app.get("/messages", async function(req, res) {
             return res.sendStatus(403)
         }
 
+        const getMessages = await db.collection("messages").find({
+            $or: [
+                { from: user },
+                { to: { $in: [user, "Todos"] } },
+                { type: "message" },
+              ],
+        }).toArray()
+
         if ( limit ) {
             const schemaQuery = joi.string().required().pattern(/^[1-9]\d*$/)
 
@@ -145,20 +153,12 @@ app.get("/messages", async function(req, res) {
                 const errors = validateQuery.error.details.map(e => e.message)
                 return res.status(422).send(errors)
             }
+
+            const lastElements = getMessages.slice(-limit)
+
+            return res.status(200).send(lastElements)
         }
 
-        const getMessages = await db.collection("messages").find({
-            $or: [
-                { from: user },
-                { to: { $in: [user, "Todos"] } },
-                { type: "message" },
-              ],
-        }).limit(limit).toArray()
-
-        if ( getMessages.length === 0 ) {
-            return res.status(404).send("Nenhuma mensagem!")
-        }
-        
         res.status(200).send(getMessages)
 
     } catch (err) {
